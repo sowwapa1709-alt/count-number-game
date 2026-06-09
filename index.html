@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Runner 2026</title>
+    <title>Neon Number Guesser</title>
     <style>
         * {
             margin: 0;
@@ -11,355 +11,238 @@
             box-sizing: border-box;
         }
         body {
-            background: #0a0a16;
+            background: #0d0d1a;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #fff;
         }
-        #gameContainer {
-            position: relative;
-            box-shadow: 0 0 50px rgba(0, 242, 254, 0.3);
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        canvas {
-            background: #111125;
-            display: block;
-        }
-        .ui-layer {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 24px;
-            font-weight: bold;
-            text-shadow: 0 0 10px #00f2fe;
-            font-family: monospace;
-            pointer-events: none;
-        }
-        #gameOverScreen {
-            position: absolute;
-            top: 0;
-            left: 0;
+        .game-card {
+            background: #14142b;
+            border: 2px solid #00f2fe;
+            box-shadow: 0 0 30px rgba(0, 242, 254, 0.2);
+            border-radius: 15px;
+            padding: 30px;
             width: 100%;
-            height: 100%;
-            background: rgba(10, 10, 22, 0.85);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
-        #gameOverScreen.active {
-            opacity: 1;
-            pointer-events: auto;
+            max-width: 450px;
+            text-align: center;
+            position: relative;
         }
         h1 {
-            font-size: 48px;
-            color: #ff007f;
-            text-shadow: 0 0 20px #ff007f;
+            font-size: 32px;
+            color: #00f2fe;
+            text-shadow: 0 0 15px #00f2fe;
+            margin-bottom: 10px;
+        }
+        p.subtitle {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        .stats-container {
+            display: flex;
+            justify-content: space-between;
             margin-bottom: 20px;
-            transform: scale(0.9);
-            transition: transform 0.3s ease;
+            font-family: monospace;
+            font-size: 16px;
         }
-        #gameOverScreen.active h1 {
-            transform: scale(1);
+        #timerBox { color: #39ff14; text-shadow: 0 0 8px #39ff14; }
+        #attemptsBox { color: #ff007f; text-shadow: 0 0 8px #ff007f; }
+
+        .input-group {
+            margin-bottom: 20px;
         }
+        input[type="number"] {
+            width: 100%;
+            padding: 15px;
+            background: #0d0d1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 24px;
+            text-align: center;
+            outline: none;
+            transition: all 0.3s;
+        }
+        input[type="number"]:focus {
+            border-color: #00f2fe;
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.4);
+        }
+        /* ซ่อนลูกศรของ input number */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
         button {
-            padding: 12px 30px;
-            font-size: 18px;
+            width: 100%;
+            padding: 15px;
             background: transparent;
             color: #00f2fe;
             border: 2px solid #00f2fe;
-            border-radius: 5px;
-            cursor: pointer;
+            border-radius: 8px;
+            font-size: 18px;
             font-weight: bold;
-            transition: all 0.2s ease;
-            box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.1);
         }
         button:hover {
             background: #00f2fe;
-            color: #111125;
-            box-shadow: 0 0 25px #00f2fe;
-            transform: translateY(-2px);
+            color: #14142b;
+            box-shadow: 0 0 20px #00f2fe;
         }
-        .controls-hint {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 14px;
-            color: #666;
-            text-align: center;
-            pointer-events: none;
+
+        .hint-message {
+            margin-top: 25px;
+            font-size: 20px;
+            font-weight: bold;
+            min-height: 30px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            transition: all 0.3s;
+        }
+
+        .success { color: #39ff14; text-shadow: 0 0 15px #39ff14; }
+        .too-high { color: #ff007f; text-shadow: 0 0 15px #ff007f; }
+        .too-low { color: #fffb00; text-shadow: 0 0 15px #fffb00; }
+
+        #btnReset {
+            margin-top: 15px;
+            border-color: #ff007f;
+            color: #ff007f;
+            display: none;
+        }
+        #btnReset:hover {
+            background: #ff007f;
+            color: #14142b;
+            box-shadow: 0 0 20px #ff007f;
         }
     </style>
 </head>
 <body>
 
-<div id="gameContainer">
-    <div class="ui-layer">SCORE: <span id="scoreVal">0</span></div>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    
-    <div id="gameOverScreen">
-        <h1 id="overTitle">GAME OVER</h1>
-        <p style="margin-bottom: 20px; font-size: 20px;">คะแนนที่คุณทำได้: <span id="finalScore" style="color: #00f2fe; font-weight: bold;">0</span></p>
-        <button onclick="resetGame()">PLAY AGAIN</button>
+<div class="game-card">
+    <h1>NUMBER GUESSER</h1>
+    <p class="subtitle">ระบบได้สุ่มตัวเลขลึกลับระหว่าง 1 ถึง 100 ไว้แล้ว!</p>
+
+    <div class="stats-container">
+        <div id="timerBox">TIME: <span id="timeVal">0.0</span>s</div>
+        <div id="attemptsBox">GUESS: <span id="attemptVal">0</span></div>
     </div>
-    <div class="controls-hint">กด [ SPACEBAR ] หรือ [ คลิกเมาส์ ] เพื่อกระโดด (ดับเบิ้ลจั๊มพ์ได้!)</div>
+
+    <div class="input-group">
+        <input type="number" id="guessInput" placeholder="ใส่ตัวเลขที่ทายที่นี่" min="1" max="100" autocomplete="off">
+    </div>
+
+    <button id="btnGuess" onclick="checkGuess()">ทายคำตอบ!</button>
+    <button id="btnReset" onclick="initGame()">เล่นใหม่อีกครั้ง</button>
+
+    <div id="hintMsg" class="hint-message">เริ่มทายได้เลย!</div>
 </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const scoreVal = document.getElementById('scoreVal');
-    const finalScore = document.getElementById('finalScore');
-    const gameOverScreen = document.getElementById('gameOverScreen');
+    let targetNumber = 0;
+    let attempts = 0;
+    let startTime = 0;
+    let timerInterval = null;
+    let isGameActive = false;
 
-    // ระบบผู้เล่น (Player)
-    const player = {
-        x: 80,
-        y: 300,
-        width: 30,
-        height: 40,
-        gravity: 0.6,
-        velocity: 0,
-        jumpForce: -12,
-        jumpCount: 0,
-        maxJumps: 2,
-        color: '#00f2fe',
-        trail: []
-    };
+    const guessInput = document.getElementById('guessInput');
+    const hintMsg = document.getElementById('hintMsg');
+    const attemptVal = document.getElementById('attemptVal');
+    const timeVal = document.getElementById('timeVal');
+    const btnGuess = document.getElementById('btnGuess');
+    const btnReset = document.getElementById('btnReset');
 
-    // พื้นดิน
-    const groundY = 340;
-
-    // อาร์เรย์เก็บสิ่งกีดขวางและเอฟเฟกต์
-    let obstacles = [];
-    let particles = [];
-    let gameSpeed = 6;
-    let score = 0;
-    let isGameOver = false;
-    let spawnTimer = 0;
-
-    // ดักจับปุ่มกด
-    window.addEventListener('keydown', (e) => {
-        if (e.code === 'Space') {
-            playerJump();
-        }
-    });
-    canvas.addEventListener('mousedown', playerJump);
-
-    function playerJump() {
-        if (isGameOver) return;
-        if (player.jumpCount < player.maxJumps) {
-            player.velocity = player.jumpForce;
-            player.jumpCount++;
-            // สร้างเอฟเฟกต์ฝุ่นตอนกระโดด
-            createParticles(player.x + player.width/2, player.y + player.height, '#00f2fe', 10);
-        }
-    }
-
-    // สร้างเศษเอฟเฟกต์พาร์ทิเคิลเพิ่มความเฟี้ยว
-    function createParticles(x, y, color, count) {
-        for (let i = 0; i < count; i++) {
-            particles.push({
-                x: x,
-                y: y,
-                size: Math.random() * 4 + 2,
-                speedX: (Math.random() - 0.5) * 8,
-                speedY: (Math.random() - 0.5) * 8,
-                color: color,
-                alpha: 1
-            });
-        }
-    }
-
-    function spawnObstacle() {
-        const types = ['spike', 'tall', 'floating'];
-        const type = types[Math.floor(Math.random() * types.length)];
+    // ฟังก์ชันเริ่มต้นเกมใหม่
+    function initGame() {
+        // สุ่มเลข 1 - 100
+        targetNumber = Math.floor(Math.random() * 100) + 1;
+        attempts = 0;
+        isGameActive = true;
         
-        let obs = {
-            x: canvas.width,
-            width: 30,
-            height: 40,
-            y: groundY - 40,
-            type: type,
-            color: '#ff007f'
-        };
+        // รีเซ็ต UI
+        attemptVal.innerText = attempts;
+        timeVal.innerText = "0.0";
+        guessInput.value = "";
+        guessInput.disabled = false;
+        btnGuess.style.display = "block";
+        btnReset.style.display = "none";
+        hintMsg.innerText = "เริ่มทายได้เลย!";
+        hintMsg.className = "hint-message";
 
-        if (type === 'tall') {
-            obs.height = 60;
-            obs.y = groundY - 60;
-        } else if (type === 'floating') {
-            obs.y = groundY - 90;
-            obs.height = 25;
-        }
+        // เริ่มจับเวลา
+        startTime = Date.now();
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            if (isGameActive) {
+                let elapsed = (Date.now() - startTime) / 1000;
+                timeVal.innerText = elapsed.toFixed(1);
+            }
+        }, 100);
 
-        obstacles.push(obs);
+        guessInput.focus();
     }
 
-    function resetGame() {
-        obstacles = [];
-        particles = [];
-        score = 0;
-        gameSpeed = 6;
-        player.y = groundY - player.height;
-        player.velocity = 0;
-        player.jumpCount = 0;
-        player.trail = [];
-        isGameOver = false;
-        scoreVal.innerText = score;
-        gameOverScreen.classList.remove('active');
-        animate();
-    }
+    // ฟังก์ชันตรวจคำตอบ
+    function checkGuess() {
+        if (!isGameActive) return;
 
-    // ฟังก์ชันอัปเดตและวาดกราฟิก
-    function animate() {
-        if (isGameOver) return;
+        const userGuess = parseInt(guessInput.value);
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 1. วาดพื้น Grid แนวไซเบอร์พังค์
-        ctx.strokeStyle = '#222244';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, groundY);
-        ctx.lineTo(canvas.width, groundY);
-        ctx.stroke();
-        
-        // เส้นแสงวิ่งที่พื้น
-        for (let i = (sketchTime % 40); i < canvas.width; i += 40) {
-            ctx.strokeStyle = '#1b1b3a';
-            ctx.beginPath();
-            ctx.moveTo(i, groundY);
-            ctx.lineTo(i - 40, canvas.height);
-            ctx.stroke();
+        // ตรวจสอบความถูกต้องของ Input
+        if (isNaN(userGuess) || userGuess < 1 || userGuess > 100) {
+            hintMsg.innerText = "กรุณาใส่ตัวเลขระหว่าง 1 ถึง 100 เท่านั้น!";
+            hintMsg.className = "hint-message too-low";
+            return;
         }
 
-        // 2. อัปเดตและวาดตัวละคร (Player)
-        player.velocity += player.gravity;
-        player.y += player.velocity;
+        attempts++;
+        attemptVal.innerText = attempts;
 
-        // ชนพื้น
-        if (player.y > groundY - player.height) {
-            player.y = groundY - player.height;
-            player.velocity = 0;
-            player.jumpCount = 0;
-        }
-
-        // เก็บข้อมูลทำ Shadow Trail (ร่างเงา)
-        player.trail.push({x: player.x, y: player.y});
-        if (player.trail.length > 5) player.trail.shift();
-
-        // วาดร่างเงาเฟี้ยวๆ
-        player.trail.forEach((t, index) => {
-            ctx.fillStyle = `rgba(0, 242, 254, ${index * 0.15})`;
-            ctx.fillRect(t.x, t.y, player.width, player.height);
-        });
-
-        // วาดตัวละครหลัก
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = player.color;
-        ctx.fillStyle = player.color;
-        ctx.fillRect(player.x, player.y, player.width, player.height);
-        ctx.shadowBlur = 0; // reset shadow
-
-        // 3. จัดการสิ่งกีดขวาง (Obstacles)
-        spawnTimer++;
-        // สุ่มดีเลย์การเกิดตามความเร็วเกม
-        let spawnRate = Math.max(40, 90 - Math.floor(gameSpeed * 2));
-        if (spawnTimer > spawnRate) {
-            spawnObstacle();
-            spawnTimer = 0;
-        }
-
-        for (let i = obstacles.length - 1; i >= 0; i--) {
-            let o = obstacles[i];
-            o.x -= gameSpeed;
-
-            // วาดสิ่งกีดขวางนีออนสีชมพู
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = o.color;
-            ctx.fillStyle = o.color;
+        if (userGuess === targetNumber) {
+            // ทายถูก!
+            isGameActive = false;
+            clearInterval(timerInterval);
+            let finalTime = ((Date.now() - startTime) / 1000).toFixed(2);
             
-            if (o.type === 'spike') {
-                ctx.beginPath();
-                ctx.moveTo(o.x, o.y + o.height);
-                ctx.lineTo(o.x + o.width/2, o.y);
-                ctx.lineTo(o.x + o.width, o.y + o.height);
-                ctx.fill();
-            } else {
-                ctx.fillRect(o.x, o.y, o.width, o.height);
-            }
-            ctx.shadowBlur = 0;
-
-            // ตรวจสอบการชน (Hitbox)
-            if (
-                player.x < o.x + o.width &&
-                player.x + player.width > o.x &&
-                player.y < o.y + o.height &&
-                player.y + player.height > o.y
-            ) {
-                // ชนแล้ว! Game Over
-                isGameOver = true;
-                createParticles(player.x + player.width/2, player.y + player.height/2, '#ff007f', 40);
-                createParticles(player.x + player.width/2, player.y + player.height/2, '#00f2fe', 40);
-                endGame();
-            }
-
-            // พ้นจอแล้วได้คะแนน
-            if (o.x + o.width < 0) {
-                obstacles.splice(i, 1);
-                score++;
-                scoreVal.innerText = score;
-                // เพิ่มความเร็วเกมเมื่อคะแนนสูงขึ้น
-                if (score % 5 === 0) gameSpeed += 0.5;
-            }
+            hintMsg.innerText = `🎉 ถูกต้องแล้วคร้าบ! เลขคือ ${targetNumber} (ใช้ไป ${attempts} ครั้ง ในเวลา ${finalTime} วินาที)`;
+            hintMsg.className = "hint-message success";
+            
+            endGame();
+        } else if (userGuess > targetNumber) {
+            // ทายมากเกินไป
+            hintMsg.innerText = "📈 มากเกินไป! ลองเลขที่น้อยกว่านี้";
+            hintMsg.className = "hint-message too-high";
+        } else {
+            // ทายน้อยเกินไป
+            hintMsg.innerText = "📉 น้อยเกินไป! ลองเลขที่มากกว่านี้";
+            hintMsg.className = "hint-message too-low";
         }
 
-        // 4. อัปเดตเอฟเฟกต์ระเบิด/ฝุ่น (Particles)
-        for (let i = particles.length - 1; i >= 0; i--) {
-            let p = particles[i];
-            p.x += p.speedX;
-            p.y += p.speedY;
-            p.alpha -= 0.02;
-            if (p.alpha <= 0) {
-                particles.splice(i, 1);
-            } else {
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.alpha;
-                ctx.fillRect(p.x, p.y, p.size, p.size);
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        // วาดฉากหลังและพื้นล่างสุดเพื่อความเนียน
-        ctx.fillStyle = '#0a0a16';
-        ctx.fillRect(0, groundY + 2, canvas.width, canvas.height - groundY);
-
-        sketchTime += gameSpeed;
-        requestAnimationFrame(animate);
+        guessInput.value = "";
+        guessInput.focus();
     }
-
-    let sketchTime = 0;
 
     function endGame() {
-        finalScore.innerText = score;
-        gameOverScreen.classList.add('active');
-        
-        // วาดเฟรมสุดท้าย (ระเบิด) เพื่อความสวยงาม
-        ctx.fillStyle = 'rgba(255,0,127,0.2)';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
+        guessInput.disabled = true;
+        btnGuess.style.display = "none";
+        btnReset.style.display = "block";
     }
 
-    // เริ่มเกมครั้งแรก
-    resetGame();
+    // รองรับการกดปุ่ม Enter ในช่อง Input
+    guessInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            checkGuess();
+        }
+    });
+
+    // เริ่มเกมทันทีที่เปิดหน้าเว็บ
+    initGame();
 </script>
 
 </body>
