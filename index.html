@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Runner 2026</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a0a16;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 242, 254, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        canvas {
+            background: #111125;
+            display: block;
+        }
+        .ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #00f2fe;
+            font-family: monospace;
+            pointer-events: none;
+        }
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 22, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #gameOverScreen.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        h1 {
+            font-size: 48px;
+            color: #ff007f;
+            text-shadow: 0 0 20px #ff007f;
+            margin-bottom: 20px;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        #gameOverScreen.active h1 {
+            transform: scale(1);
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 18px;
+            background: transparent;
+            color: #00f2fe;
+            border: 2px solid #00f2fe;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+        }
+        button:hover {
+            background: #00f2fe;
+            color: #111125;
+            box-shadow: 0 0 25px #00f2fe;
+            transform: translateY(-2px);
+        }
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #666;
+            text-align: center;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="gameContainer">
+    <div class="ui-layer">SCORE: <span id="scoreVal">0</span></div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    
+    <div id="gameOverScreen">
+        <h1 id="overTitle">GAME OVER</h1>
+        <p style="margin-bottom: 20px; font-size: 20px;">คะแนนที่คุณทำได้: <span id="finalScore" style="color: #00f2fe; font-weight: bold;">0</span></p>
+        <button onclick="resetGame()">PLAY AGAIN</button>
+    </div>
+    <div class="controls-hint">กด [ SPACEBAR ] หรือ [ คลิกเมาส์ ] เพื่อกระโดด (ดับเบิ้ลจั๊มพ์ได้!)</div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreVal = document.getElementById('scoreVal');
+    const finalScore = document.getElementById('finalScore');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+
+    // ระบบผู้เล่น (Player)
+    const player = {
+        x: 80,
+        y: 300,
+        width: 30,
+        height: 40,
+        gravity: 0.6,
+        velocity: 0,
+        jumpForce: -12,
+        jumpCount: 0,
+        maxJumps: 2,
+        color: '#00f2fe',
+        trail: []
+    };
+
+    // พื้นดิน
+    const groundY = 340;
+
+    // อาร์เรย์เก็บสิ่งกีดขวางและเอฟเฟกต์
+    let obstacles = [];
+    let particles = [];
+    let gameSpeed = 6;
+    let score = 0;
+    let isGameOver = false;
+    let spawnTimer = 0;
+
+    // ดักจับปุ่มกด
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            playerJump();
+        }
+    });
+    canvas.addEventListener('mousedown', playerJump);
+
+    function playerJump() {
+        if (isGameOver) return;
+        if (player.jumpCount < player.maxJumps) {
+            player.velocity = player.jumpForce;
+            player.jumpCount++;
+            // สร้างเอฟเฟกต์ฝุ่นตอนกระโดด
+            createParticles(player.x + player.width/2, player.y + player.height, '#00f2fe', 10);
+        }
+    }
+
+    // สร้างเศษเอฟเฟกต์พาร์ทิเคิลเพิ่มความเฟี้ยว
+    function createParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: x,
+                y: y,
+                size: Math.random() * 4 + 2,
+                speedX: (Math.random() - 0.5) * 8,
+                speedY: (Math.random() - 0.5) * 8,
+                color: color,
+                alpha: 1
+            });
+        }
+    }
+
+    function spawnObstacle() {
+        const types = ['spike', 'tall', 'floating'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
+        let obs = {
+            x: canvas.width,
+            width: 30,
+            height: 40,
+            y: groundY - 40,
+            type: type,
+            color: '#ff007f'
+        };
+
+        if (type === 'tall') {
+            obs.height = 60;
+            obs.y = groundY - 60;
+        } else if (type === 'floating') {
+            obs.y = groundY - 90;
+            obs.height = 25;
+        }
+
+        obstacles.push(obs);
+    }
+
+    function resetGame() {
+        obstacles = [];
+        particles = [];
+        score = 0;
+        gameSpeed = 6;
+        player.y = groundY - player.height;
+        player.velocity = 0;
+        player.jumpCount = 0;
+        player.trail = [];
+        isGameOver = false;
+        scoreVal.innerText = score;
+        gameOverScreen.classList.remove('active');
+        animate();
+    }
+
+    // ฟังก์ชันอัปเดตและวาดกราฟิก
+    function animate() {
+        if (isGameOver) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. วาดพื้น Grid แนวไซเบอร์พังค์
+        ctx.strokeStyle = '#222244';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(canvas.width, groundY);
+        ctx.stroke();
+        
+        // เส้นแสงวิ่งที่พื้น
+        for (let i = (sketchTime % 40); i < canvas.width; i += 40) {
+            ctx.strokeStyle = '#1b1b3a';
+            ctx.beginPath();
+            ctx.moveTo(i, groundY);
+            ctx.lineTo(i - 40, canvas.height);
+            ctx.stroke();
+        }
+
+        // 2. อัปเดตและวาดตัวละคร (Player)
+        player.velocity += player.gravity;
+        player.y += player.velocity;
+
+        // ชนพื้น
+        if (player.y > groundY - player.height) {
+            player.y = groundY - player.height;
+            player.velocity = 0;
+            player.jumpCount = 0;
+        }
+
+        // เก็บข้อมูลทำ Shadow Trail (ร่างเงา)
+        player.trail.push({x: player.x, y: player.y});
+        if (player.trail.length > 5) player.trail.shift();
+
+        // วาดร่างเงาเฟี้ยวๆ
+        player.trail.forEach((t, index) => {
+            ctx.fillStyle = `rgba(0, 242, 254, ${index * 0.15})`;
+            ctx.fillRect(t.x, t.y, player.width, player.height);
+        });
+
+        // วาดตัวละครหลัก
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = player.color;
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.shadowBlur = 0; // reset shadow
+
+        // 3. จัดการสิ่งกีดขวาง (Obstacles)
+        spawnTimer++;
+        // สุ่มดีเลย์การเกิดตามความเร็วเกม
+        let spawnRate = Math.max(40, 90 - Math.floor(gameSpeed * 2));
+        if (spawnTimer > spawnRate) {
+            spawnObstacle();
+            spawnTimer = 0;
+        }
+
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let o = obstacles[i];
+            o.x -= gameSpeed;
+
+            // วาดสิ่งกีดขวางนีออนสีชมพู
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = o.color;
+            ctx.fillStyle = o.color;
+            
+            if (o.type === 'spike') {
+                ctx.beginPath();
+                ctx.moveTo(o.x, o.y + o.height);
+                ctx.lineTo(o.x + o.width/2, o.y);
+                ctx.lineTo(o.x + o.width, o.y + o.height);
+                ctx.fill();
+            } else {
+                ctx.fillRect(o.x, o.y, o.width, o.height);
+            }
+            ctx.shadowBlur = 0;
+
+            // ตรวจสอบการชน (Hitbox)
+            if (
+                player.x < o.x + o.width &&
+                player.x + player.width > o.x &&
+                player.y < o.y + o.height &&
+                player.y + player.height > o.y
+            ) {
+                // ชนแล้ว! Game Over
+                isGameOver = true;
+                createParticles(player.x + player.width/2, player.y + player.height/2, '#ff007f', 40);
+                createParticles(player.x + player.width/2, player.y + player.height/2, '#00f2fe', 40);
+                endGame();
+            }
+
+            // พ้นจอแล้วได้คะแนน
+            if (o.x + o.width < 0) {
+                obstacles.splice(i, 1);
+                score++;
+                scoreVal.innerText = score;
+                // เพิ่มความเร็วเกมเมื่อคะแนนสูงขึ้น
+                if (score % 5 === 0) gameSpeed += 0.5;
+            }
+        }
+
+        // 4. อัปเดตเอฟเฟกต์ระเบิด/ฝุ่น (Particles)
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.speedX;
+            p.y += p.speedY;
+            p.alpha -= 0.02;
+            if (p.alpha <= 0) {
+                particles.splice(i, 1);
+            } else {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // วาดฉากหลังและพื้นล่างสุดเพื่อความเนียน
+        ctx.fillStyle = '#0a0a16';
+        ctx.fillRect(0, groundY + 2, canvas.width, canvas.height - groundY);
+
+        sketchTime += gameSpeed;
+        requestAnimationFrame(animate);
+    }
+
+    let sketchTime = 0;
+
+    function endGame() {
+        finalScore.innerText = score;
+        gameOverScreen.classList.add('active');
+        
+        // วาดเฟรมสุดท้าย (ระเบิด) เพื่อความสวยงาม
+        ctx.fillStyle = 'rgba(255,0,127,0.2)';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+
+    // เริ่มเกมครั้งแรก
+    resetGame();
+</script>
+
+</body>
+</html>
